@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
+*{box-sizing:border-box}body{margin:0;background:#101521;color:#eee;font-family:system-ui,sans-serif}canvas{display:block;width:100%;max-width:1100px;aspect-ratio:1100/640;margin:auto;outline:none;image-rendering:pixelated;border:1px solid #42445a;border-radius:8px}p{text-align:center;font-size:13px;color:#afbdcb;margin:8px}button{background:#29394b;color:#f7e2ac;border:1px solid #617080;border-radius:6px;padding:7px 15px;cursor:pointer}
+</style></head><body><canvas id="game" width="1100" height="640" tabindex="0" aria-label="Physics Chronicles game"></canvas><p><button id="start">클릭하여 게임 조작 시작</button>　PC 키보드 권장 · ↓ + C 발판 통과 · 상점 1/2/3 구매 · Enter 다음 시대</p>
+<script>
+'use strict';
+const cv=document.getElementById('game'),g=cv.getContext('2d');g.imageSmoothingEnabled=false;
+const keys=new Set(),pressed=new Set();let focused=false;
+cv.addEventListener('focus',()=>focused=true);cv.addEventListener('blur',()=>{focused=false;keys.clear();pressed.clear()});
+cv.addEventListener('pointerdown',()=>cv.focus());document.getElementById('start').onclick=()=>cv.focus();
+cv.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code))e.preventDefault();if(!keys.has(e.code))pressed.add(e.code);keys.add(e.code)});
+cv.addEventListener('keyup',e=>{keys.delete(e.code);e.preventDefault()});window.addEventListener('blur',()=>{keys.clear();pressed.clear()});
+const eras=[{place:'시라쿠사',boss:'아르키메데스',bg:'#29263e',skill:'지렛대 올려베기'},{place:'피사 · 피렌체',boss:'갈릴레이',bg:'#302638',skill:'관성 참격'},{place:'케임브리지 · 런던',boss:'뉴턴',bg:'#1d2c43',skill:'중력 강타'}];
+let p,enemies,shots,fx,ledges,era,room,gold,hp,maxhp,damage,clear,shop,dead,won,notice,nt,camera,ac,dc,sc,inv,dash,swing,drop,hits,frame;
+const floor=550,world=1800;
+function say(s){notice=s;nt=4}
+function reset(){era=room=gold=0;hp=maxhp=100;damage=28;dead=won=shop=false;ac=dc=sc=inv=dash=swing=drop=0;frame=0;load()}
+function load(){p={x:130,y:floor-54,w:30,h:54,vx:0,vy:0,face:1,jumps:0,ground:false};camera=0;enemies=[];shots=[];fx=[];clear=shop=false;dash=swing=drop=0;hits=new Set();ledges=room===0?[{x:250,y:435,w:220},{x:650,y:355,w:230},{x:1050,y:435,w:240}]:[];
+ if(room===0){for(let i=0;i<4+era;i++)enemies.push({x:600+i*165,y:floor-58,w:36,h:58,hp:70,max:70,ranged:i%3===2,t:1+i*.4,wind:0,hit:0,boss:false});say('적을 모두 처치한 뒤 오른쪽 문으로 이동하세요.')}else{enemies.push({x:1270,y:floor-160,w:94,h:160,hp:420+era*100,max:420+era*100,t:1.6,wind:0,hit:0,boss:true,action:0,target:0});say(eras[era].boss+' · 공격 예고를 피하고 빈틈을 노리세요.')}}
+function next(){if(room===0)room=1;else{era++;room=0;hp=Math.min(maxhp,hp+25)}load()}
+function burst(x,y,c,n=9){for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,s=60+Math.random()*170;fx.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,t:.2+Math.random()*.2,c})}}
+function hurt(n){if(inv>0||dead)return;hp=Math.max(0,hp-n);inv=.85;burst(p.x+15,p.y+25,'#f4818c',15);if(!hp)dead=true}
+function hit(e,n){if(e.hp<=0)return;e.hp-=n;e.hit=.13;burst(e.x+e.w/2,e.y+e.h/2,'#ffe4a3',7)}
+function shoot(x,y,vx,vy){shots.push({x,y,vx,vy,t:5})}
+function buy(n){let cost=n===1?20:n===2?25:15;if(gold<cost){say('동전이 부족합니다.');return}if(n===3&&hp===maxhp){say('체력이 가득 차 있습니다.');return}gold-=cost;if(n===1){maxhp+=20;hp+=20}else if(n===2)damage+=7;else hp=Math.min(maxhp,hp+40);say('구매 완료!')}
+function update(dt){frame+=dt;nt-=dt;if(pressed.has('KeyR')&&(dead||won)){reset();return}if(dead||won)return;
+ if(shop){if(pressed.has('Digit1'))buy(1);if(pressed.has('Digit2'))buy(2);if(pressed.has('Digit3'))buy(3);if(pressed.has('Enter')||pressed.has('ArrowUp'))next();return}
+ ac-=dt;dc-=dt;sc-=dt;inv-=dt;swing-=dt;drop-=dt;dash-=dt;
+ let dx=(keys.has('ArrowRight')||keys.has('KeyD')?1:0)-(keys.has('ArrowLeft')||keys.has('KeyA')?1:0);if(dx&&dash<=0)p.face=dx;
+ if(pressed.has('KeyC')){if(keys.has('ArrowDown')&&p.ground){drop=.25;p.y+=5;p.vy=100;p.ground=false}else if(p.ground||p.jumps<2){p.vy=p.jumps===0?-650:-590;p.jumps++;p.ground=false;burst(p.x+15,p.y+54,'#94e4da',6)}}
+ if(pressed.has('KeyZ')&&dc<=0){dash=.15;dc=.65;inv=Math.max(inv,.2);p.dashFace=p.face;burst(p.x,p.y+30,'#81dfd6',8)}
+ if(pressed.has('KeyX')&&ac<=0){ac=.3;swing=.19;hits.clear()}
+ if(pressed.has('KeyQ')&&sc<=0){sc=4;burst(p.x+p.face*70,p.y+20,'#ffdf95',28);for(const e of enemies)if(Math.abs(e.x-p.x)<220&&Math.abs(e.y-p.y)<180)hit(e,era===2?95:70)}
+ let old=p.y+p.h;p.vx=dash>0?p.dashFace*1050:dx*330;p.x=Math.max(0,Math.min(world-p.w,p.x+p.vx*dt));p.vy=Math.min(1100,p.vy+1650*dt);p.y+=p.vy*dt;p.ground=false;
+ let landing=floor;if(drop<=0&&p.vy>=0)for(const l of ledges)if(p.x+p.w>l.x&&p.x<l.x+l.w&&old<=l.y+1&&p.y+p.h>=l.y)landing=Math.min(landing,l.y);
+ if(p.y+p.h>=landing){p.y=landing-p.h;p.vy=0;p.ground=true;p.jumps=0}
+ if(swing>0)for(const e of enemies)if(!hits.has(e)&&(e.x-p.x)*p.face>-35&&Math.abs(e.x-p.x)<135&&Math.abs(e.y-p.y)<130){hits.add(e);hit(e,damage)}
+ for(const e of enemies){if(e.hp<=0)continue;e.hit-=dt;const dx=p.x-e.x;
+  if(e.wind>0){e.wind-=dt;if(e.wind<=0){if(!e.boss){if(e.ranged){let a=Math.atan2(p.y-e.y,dx);shoot(e.x,e.y+25,Math.cos(a)*390,Math.sin(a)*390)}else if(Math.abs(dx)<110&&Math.abs(p.y-e.y)<95)hurt(16)}
+   else if(era===0){if(e.action===0){if(Math.abs(dx)<195&&p.y>floor-200)hurt(25)}else{e.x=e.target;if(Math.abs(p.x-e.target)<125&&p.y>floor-140)hurt(28);burst(e.x,floor,'#f5d08c',25)}}
+   else if(era===1){for(let i=-1;i<=1;i++)shoot(e.target+i*65,80,0,400)}
+   else if(e.action===0){if(Math.abs(p.x-e.target)<110)hurt(25);burst(e.target,floor-50,'#aab6f2',30)}else{for(let i=0;i<10;i++){let a=i*Math.PI*2/10;shoot(e.x+e.w/2,e.y+e.h/2,Math.cos(a)*300,Math.sin(a)*300)}}
+   e.t=e.boss?1.8:1.25;
+  }}else{e.t-=dt;if(!e.boss){let speed=e.ranged?(Math.abs(dx)<240?-100:Math.abs(dx)>430?80:0):(Math.abs(dx)>80?115:0);e.x=Math.max(10,Math.min(world-45,e.x+Math.sign(dx)*speed*dt))}if(e.t<=0){e.wind=e.boss?.85:.55;e.action=Math.random()<.5?0:1;e.target=Math.max(80,Math.min(world-120,p.x))}}
+ }
+ for(let i=enemies.length-1;i>=0;i--)if(enemies[i].hp<=0){gold+=enemies[i].boss?45:8;burst(enemies[i].x,enemies[i].y,'#ffd77c',15);enemies.splice(i,1)}
+ for(let i=shots.length-1;i>=0;i--){let s=shots[i];s.x+=s.vx*dt;s.y+=s.vy*dt;s.t-=dt;if(s.x>p.x-5&&s.x<p.x+p.w+5&&s.y>p.y&&s.y<p.y+p.h){hurt(14);s.t=0}if(s.t<=0||s.y>floor+20)shots.splice(i,1)}
+ for(let i=fx.length-1;i>=0;i--){let f=fx[i];f.t-=dt;f.x+=f.vx*dt;f.y+=f.vy*dt;f.vy+=500*dt;if(f.t<=0)fx.splice(i,1)}
+ if(!clear&&enemies.length===0){clear=true;say('구역 정리 완료! 오른쪽 황금 문 앞에서 ↑')}
+ if(clear&&p.x>world-210&&pressed.has('ArrowUp')){if(room===0)next();else if(era===2)won=true;else{shop=true;say('회색 망토의 비둘기 상점')}}
+ const target=Math.max(0,Math.min(world-1100,p.x-420));camera+=(target-camera)*(1-Math.exp(-8*dt));
+}
+function box(x,y,w,h,c){g.fillStyle=c;g.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h))}
+function text(s,x,y,size=16,c='#eee',align='left'){g.font=`600 ${size}px system-ui,sans-serif`;g.fillStyle=c;g.textAlign=align;g.fillText(s,x,y)}
+function draw(){box(0,0,1100,640,eras[era].bg);for(let i=0;i<10;i++){let x=i*230-camera*.3-100,h=150+(i%3)*45;box(x,floor-h,155,h,'#ffffff08');box(x-9,floor-h,173,12,'#ffffff07')}
+ g.save();g.translate(-camera,0);box(0,floor,world,90,'#3e4052');box(0,floor,world,4,'#d5b882');for(const l of ledges){box(l.x,l.y,l.w,13,'#77707f');box(l.x,l.y,l.w,3,'#e0c292')}
+ if(clear){box(world-135,floor-125,8,125,'#edcb86');box(world-135,floor-125,75,8,'#edcb86');box(world-68,floor-125,8,125,'#edcb86');text('↑',world-97,floor-65,25,'#edcb86','center')}
+ for(const e of enemies){let c=e.hit>0?'#fff4dc':e.boss?'#dab873':e.ranged?'#60b9c2':'#d87988';box(e.x,e.y,e.w,e.h,c);box(e.x+e.w*.17,e.y+5,e.w*.66,e.h*.26,'#d9b395');box(e.x+e.w*.65,e.y+e.h*.12,4,4,'#26283b');box(e.x+e.w*.12,e.y+e.h*.63,e.w*.76,6,'#584758');if(e.boss)box(e.x+e.w*.23,e.y+e.h*.28,e.w*.54,26,'#ddd3b8');else{box(e.x-1,e.y-12,e.w+2,4,'#242234');box(e.x,e.y-12,e.w*Math.max(0,e.hp/e.max),4,'#e4888b')}
+  if(e.wind>0){let tx=e.boss&&(era>0||e.action===1)?e.target:e.x,ww=e.boss?170:85;box(tx-ww/2,floor-7,ww,7,'#f28a8f');text('! '+e.wind.toFixed(1),tx,floor-20,18,'#ffb1ab','center')}
+ }
+ if(inv<=0||Math.floor(frame*18)%2===0){let x=p.x,y=p.y;box(x-3,y,36,22,'#33586c');box(x+9,y+7,17,14,'#ecc29f');box(x+2,y+23,26,25,'#dfcfab');box(x,y+37,30,5,'#ce7e88');box(x+2,y+48,10,7,'#272a3b');box(x+20,y+48,10,7,'#272a3b')}
+ if(swing>0){g.strokeStyle='#a2eee2';g.lineWidth=7;g.beginPath();const x=p.x+15,y=p.y+25;g.arc(x,y,92,p.face>0?-.9:Math.PI-.9,p.face>0?.9:Math.PI+.9);g.stroke();g.strokeStyle='#fff0cd';g.lineWidth=3;g.beginPath();g.moveTo(x,y);g.lineTo(x+p.face*90,y-15+70*(.19-swing));g.stroke()}
+ for(const s of shots)box(s.x-5,s.y-5,10,10,'#ffad93');for(const f of fx)box(f.x,f.y,4,4,f.c);g.restore();
+ box(0,0,1100,75,'#111723');text('PHYSICS CHRONICLES',22,26,18,'#f1d398');box(22,43,210,10,'#3a3041');box(22,43,210*hp/maxhp,10,'#73d6c7');text(hp+' / '+maxhp,245,53,13);text(eras[era].place+' / '+(room===0?'일반 구역':eras[era].boss),1075,26,16,'#ded7e4','right');text(gold+' COINS',1075,53,14,'#f4d28a','right');
+ const b=enemies.find(e=>e.boss);if(b){text(eras[era].boss,550,103,19,'#efd69d','center');box(360,116,380,7,'#433343');box(360,116,380*Math.max(0,b.hp/b.max),7,'#e18a91')}
+ text('Z 대시 '+(dc<=0?'준비':dc.toFixed(1)+'s'),22,609,15,'#8ae0d1');text('Q '+eras[era].skill+' '+(sc<=0?'준비':sc.toFixed(1)+'s'),1075,609,15,'#f3d49b','right');if(nt>0)text(notice,550,580,15,'#ffe2a4','center');
+ if(shop||dead||won){box(0,0,1100,640,'#090d18ed');text(shop?'회색 망토의 비둘기':won?'세 시대의 여정 완료':'실험 실패',550,210,33,'#f4d392','center');if(shop){text('1  최대 체력 +20 / 20 G',550,285,20,'#eee','center');text('2  검 공격력 +7 / 25 G',550,325,20,'#eee','center');text('3  체력 회복 +40 / 15 G',550,365,20,'#eee','center');text('보유 '+gold+' G · 체력 '+hp+'/'+maxhp,550,415,18,'#8be0d0','center');text('Enter / ↑ 다음 시대',550,470,18,'#eee','center');if(nt>0)text(notice,550,520,16,'#f2cc89','center')}else text('R 키로 처음부터 다시 시작',550,300,20,'#eee','center')}
+ if(!focused&&!dead&&!won){box(300,140,500,58,'#101827ed');text('게임 화면을 클릭하면 조작할 수 있습니다',550,176,19,'#e9d6aa','center')}
+}
+reset();let last=performance.now();function loop(now){let dt=Math.min((now-last)/1000,.033);last=now;if(focused)update(dt);draw();pressed.clear();requestAnimationFrame(loop)}requestAnimationFrame(loop);
+</script></body></html>
