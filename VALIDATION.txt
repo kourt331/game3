@@ -1,0 +1,6 @@
+Original file byte-identical: PASS
+Python syntax: PASS
+JavaScript syntax: PASS
+Original initialization + 120 frame updates: PASS
+All 24 encounter initialization/drawing: PASS
+Actual browser/Pyodide play test: NOT RUN
